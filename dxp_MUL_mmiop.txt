@@ -1,0 +1,113 @@
+; 	This test program reads in the switches and multiplies the inferred values:
+; SW[3:2]=00 and SW[1:0]=00 ==> M_val=0000_0000 and m_val=0000_0000
+; SW[3:2]=01 and SW[1:0]=01 ==> M_val=0000_0101 and m_val=0000_0101
+; SW[3:2]=10 and SW[1:0]=10 ==> M_val=0000_1010 and m_val=0000_1010
+; SW[3:2]=11 and SW[1:0]=11 ==> M_val=0000_1111 and m_val=0000_1111
+; SW[3:2]=01 and SW[1:0]=10 ==> M_val=0000_0101 and m_val=0000_1010
+; (c) Dorin Patru April 2021
+;------------------------------------------------------------------------------
+;	Assembler directives: (just placeholders because the assembler expects these)
+;------------------------------------------------------------------------------
+	.directives;
+	;
+	.equ	constOne	0x1;
+	.equ	constTwo	0x2;
+	;
+	.enddirectives;
+;------------------------------------------------------------------------------
+;	Constant segment: (just placeholders because the assembler expects these)
+;------------------------------------------------------------------------------
+; These values are initialized in the locations at the end of the code segment.
+; For now, .word is the only constant initialization assembly directive.
+; After assembling the code, during the final run, the constant name is 
+;   replaced with its location address in the program memory.
+	.constants;
+;
+	.word	firstConstWord	0xFFFF;
+	;
+	.endconstants;
+;------------------------------------------------------------------------------
+;	Code segment:
+;------------------------------------------------------------------------------
+	.code;
+;--------------------------------------------------------------------
+; initialize registers
+;--------------------------------------------------------------------
+@start	SUB R0, R0; use R0 for MAeff
+		SUB R1, R1; initialize the other registers
+		SUB R2, R2; 
+		SUB R3, R3; 
+; initialize the location which will store the product
+		ST	R3, M[R0, 0x53]; 
+; prepare and store iteration value
+		INC R1, 2; R1 = 2
+		ADD	R1, R1; R1 = 4
+		ADD R1, R1; R1 = 8
+		ST	R1, M[R0, 0x50];
+;--------------------------------------------------------------------
+; Read in and prepare m_val and M_val
+;--------------------------------------------------------------------
+; prepare mask to generate m_val
+		INC R2, 3; R2 = 3 = 0000_0011
+; read input port {PB, SW[3:0]}
+		LD	R3, M[R0, 0x3FF]; R3 = {PB, SW[3:0]}
+; apply mask to infer m_val pattern and store m_val[1:0]
+		AND	R3, R2; R2 = {0000_00, SW[1:0]}
+		ST	R3, M[R0, 0x51];
+; shift left R3 by 2 positions to create m_val[3:2]
+		ADD	R3, R3; 
+		ADD	R3, R3;
+; load back m_val[1:0] and add with m_val[3:2]
+		LD	R1, M[R0, 0x51];
+		ADD	R3, R1; R3 = m_val (4-bits)
+; store m_val (4-bit pattern)
+		ST	R3, M[R0, 0x51];
+; prepare mask to generate M_val
+		ADD R2, R2; R2 = 6
+		ADD R2, R2; R2 = 12 = 0000_1100
+; read input port {PB, SW[3:0]}
+		LD	R3, M[R0, 0x3FF]; R3 = {PB, SW[3:0]}
+; apply mask to infer M_val pattern and store M_val[3:2]
+		AND	R3, R2; R3 = {0000, SW[1:0], 00}
+		ST	R3, M[R0, 0x52];
+; shift right arithmetic R3 by 2 positions to create M_val[1:0]
+		SHRA R3, 2; 
+; load back M_val[3:2] and add with M_val[1:0]
+		LD	R1, M[R0, 0x52];
+		ADD	R3, R1; R3 = M_val (4-bits)
+; store M_val (4-bit pattern)
+		ST	R3, M[R0, 0x52];
+;--------------------------------------------------------------------
+; Multiply M_val and m_val using the shift-left algorithm
+;--------------------------------------------------------------------		
+; R1 is holding the current partial product (PP)
+		LD	R1, M[R0, 0x52]; 
+; R2 is holding the remaining bits of the multiplier
+		LD	R2, M[R0, 0x51]; 
+; prepare mask for m-LSbit; this is the beginning of the iteration
+@next	SUB R3, R3;
+		INC R3, 1;
+; mask m-LSbit in R3
+		AND R3, R2;
+; if it is 0 jump to label @mbitz
+		JUMP Z, @mbitz;
+; else load the current product, add the current PP (R1) to it, 
+; and store it back
+		LD	R3, M[R0, 0x53];
+		ADD R3, R1;
+		ST	R3, M[R0, 0x53];
+; prepare the next PP in R1 and the next mLSbit in R2 
+@mbitz	ADD	R1, R1;
+		SHRA R2, 1;
+; load the iteration value and check if done or not
+		LD	R3, M[R0, 0x50];
+		DEC	R3, 1;
+		JUMP Z, @done;
+		ST	R3, M[R0, 0x50];
+		JUMP U, @next;
+; if done load the final product into R3 and display it on the lEDs
+@done	LD	R3, M[R0, 0x53];
+		ST	R3, M[R0, 0x3FF]; write out to the LEDs
+; jump back to start and repeat the multiplication
+		JUMP U, @start;
+	.endcode;
