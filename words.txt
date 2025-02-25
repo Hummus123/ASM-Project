@@ -1,0 +1,1 @@
+26 token(val='INSTRUCTION', type='firstConstWord', linenum=26) token(val='HEX', type='0xFFFF', linenum=26)

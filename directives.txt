@@ -1,0 +1,2 @@
+13	token(val='INSTRUCTION', type='constOne', linenum=13)	token(val='HEX', type='0x1', linenum=13)
+14	token(val='INSTRUCTION', type='constTwo', linenum=14)	token(val='HEX', type='0x2', linenum=14)

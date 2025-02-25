@@ -31,7 +31,7 @@ with open("dxp_MUL_mmiop.txt", "r") as f:
             ("END", r';.*'),
             ("JA", r'\@[a-zA-Z0-9]+'),
             ("REG", r'R[0123]'),
-            ("MEMADDRESS", r'M\[.*\]'),
+            ("MEMADDRESS", r'M\[[\w*\]'),
             ("MACRO", r'\.\w*'),
             ("INSTRUCTION", r'[A-Za-z]+'),
             ("HEX", r'0x[0-9A-F]*'),
@@ -77,8 +77,14 @@ with open("dxp_MUL_mmiop.txt", "r") as f:
         previous = i
     
     macros = []
+    progressBar = ["\033[91m-\033[00m" for i in range(20)]
 
     for i in range(len(tokens)):
+        progressBar[int(i/len(tokens) * len(progressBar))] = "\033[92m-\033[00m"
+        if (i % 10 == 0):
+            print(f"{i/len(tokens)*100:.1f}% ", end = "")
+            print("".join(progressBar),)
+
         t = tokens[i]
         if (t.val == "MACRO"):
             if(t.type.lower() == ".directives"):
@@ -87,10 +93,15 @@ with open("dxp_MUL_mmiop.txt", "r") as f:
                     i += 1
                     t = tokens[i]
 
-            print("\n")
-
             if(t.type.lower() == ".constants"):
                 while (t.type.lower() != ".endconstants"):
                     print(t)
                     i += 1
                     t = tokens[i]
+        if (t.val == "INSTRUCTION"):
+            while(t.val != "END"):
+                print(t)
+                i += 1
+                t = tokens[i]
+            print()
+    print("\tDone!")
