@@ -1,17 +1,6 @@
 import re
 from typing import NamedTuple
 
-"""""
-parser = Parser("file")
-parser.directives.print()
-parser.directives.out("txt")
-parser.words.print()
-parser.words.out("txt")
-parser.code.print()
-parser.code.out("txt")
-parser.code.out("mif")
-"""""
-
 class Parser:
     def __init__(self, file) :
         self.fileStr = file
