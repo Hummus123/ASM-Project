@@ -28,10 +28,10 @@ class Parser:
         self.ja = []
         self.words = self._words()
         self.directives = self._directives()
-        self.code = self._code(self.instructions, self.registers, self.ja)
+        self.code = self._code(self.instructions, self.registers, jumpaddr=self.ja)
         with open(self.fileStr, "r") as toParse:
             toParse = toParse.read()
-            self.Parsed = self.Parse(toParse)
+            self.Parse(toParse)
             
 
     def Parse(self, f):
@@ -134,7 +134,9 @@ class Parser:
                             if (t.val != "END"): raise Exception(f"Expected ;, {t.linenum}")
                         if (t.val == "JA"):
                             self.ja.append((t.linenum, t))
-
+        for ja in self.ja:
+            print(ja)
+            #self.code.jas.append(ja)
         print("\tDone!")
         
     
@@ -186,7 +188,7 @@ class Parser:
             self.code = code
             self.instructions = instructions
             self.registers = registers
-            self.ja = jumpaddr
+            self.jas = jumpaddr
 
         def __getitem__(self, index):
             return self.code[index]
@@ -232,13 +234,16 @@ class Parser:
                         f.write("\n")
         def addCode(self, lineNum, type, args):
             self.code.append((lineNum, type, args))
+        
+        def addJA(self, ja):
+            self.jas.append(ja)
     
 test = Parser("dxp_MUL_mmiop.txt")
 if int(input("Print? ")):
     test.directives.print()
     test.words.print()
     test.code.print()
-
-test.words.out()
-test.code.out()
-test.directives.out()
+if __name__ == "main":
+    test.words.out()
+    test.code.out()
+    test.directives.out()
