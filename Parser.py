@@ -23,12 +23,12 @@ class Parser:
                              "RRC": "1010", "LD": "1011", "ST": "1100",
                              "JUMP": "1101", "IN": "1110", "POP": "1110",
                              "OUT": "1111", "PUSH": "1111",
-                             "C":"1000", "N":"0100", "V":"0010", "Z":"0001", "U": " "}
+                             "C":"1000", "N":"0100", "V":"0010", "Z":"0001", "U": "0000"}
         self.keyWords = [".directives", ".enddirectives", ".word", ".equ", ".endconstants"]
         self.ja = []
         self.words = self._words()
         self.directives = self._directives()
-        self.code = self._code(self.instructions, self.registers)
+        self.code = self._code(self.instructions, self.registers, self.ja)
         with open(self.fileStr, "r") as toParse:
             toParse = toParse.read()
             self.Parsed = self.Parse(toParse)
@@ -70,23 +70,17 @@ class Parser:
                 instruction = i.group()
                 type = instruction
                 if (instruction not in self.instructions):
-                    if(previous.lastgroup != "MACRO"):
+                    if(previous.lastgroup != "MACRO" and previous.group() != "JUMP"):
                         raise Exception(f"Unkown Instruction ({str(linenum)}) {i.group()}")
-                    
-            elif (val == "MACRO"):
-                #print(i.group())
-                type = i.group()
             else:
                 type = i.group()
 
             tokens.append(token(val, type, linenum))
             previous = i
-        
-        macros = []
-        progressBar = ["\033[91m-\033[00m" for i in range(20)]
-
+        progbarlen = 20
+        progressBar = ["\033[91m-\033[00m" for i in range(progbarlen)]
         for i in range(len(tokens)):
-            progressBar[int(i/len(tokens) * len(progressBar))] = "\033[92m-\033[00m"
+            progressBar[int(i/len(tokens) * progbarlen)] = "\033[92m-\033[00m"
             if (i % 15 == 0):
                 print(f"{i/len(tokens)*100:.1f}%\t", end = "")
                 print("".join(progressBar),)
@@ -107,7 +101,6 @@ class Parser:
                                 i += 1
                                 t = tokens[i]
                                 if (t.val != "END"): raise Exception(f"Expected ;, {t.linenum}")
-
 
                 if(t.type.lower() == ".constants"):
                     while (t.type.lower() != ".endconstants"):
@@ -189,10 +182,11 @@ class Parser:
             self.directives.append((lineNum, name, value))
   
     class _code:
-        def __init__(self, instructions, registers, code = []):
+        def __init__(self, instructions, registers, code = [], jumpaddr = []):
             self.code = code
             self.instructions = instructions
             self.registers = registers
+            self.ja = jumpaddr
 
         def __getitem__(self, index):
             return self.code[index]
@@ -200,6 +194,7 @@ class Parser:
         def print(self):
             print("Code:")
             for code in self.code:
+                print(code)
                 print(f"\t{code[0]} {code[1]} {code[2]}\n")
         
         def out(self, fileType = "mif", depth = 32, width = 8, addRad = "hex", datRad = "bin"):
@@ -215,23 +210,34 @@ class Parser:
                         f.write(f"{hex(linenumAdj)} : {self.instructions[code[1].type]}")
                         
                         if code[1].type == "JUMP":
-                            f.write("jupman")
+                            binsum = "0000"
+                            for l in code[2][0].type:
+                                if l.upper() not in self.instructions:
+                                    raise Exception(f"Unkown Jump Condition ({code.linenum})")
+                                binsum = bin(int(self.instructions[l.upper()], 2) + int(binsum, 2))[2:]
+                            binsumext = "".join(["0" for i in range(4-len(binsum))]) + binsum
+                            f.write(f"{binsumext} here is a jum\n")
+                            if code[2][1].type not in self.ja:
+                                raise Exception(f"Jump Address not previously declared ({code.linenum})")
+                                
+                            
                         else:
                             for arg in code[2]:
                                 if arg.val == "REG":
                                     f.write(self.registers[arg.type])
                                 elif arg.val == "CONST":
                                     f.write(bin(int(arg.type))[2:])
+                                
                         linenumAdj += 1
                         f.write("\n")
         def addCode(self, lineNum, type, args):
             self.code.append((lineNum, type, args))
     
 test = Parser("dxp_MUL_mmiop.txt")
-
-test.directives.print()
-test.words.print()
-test.code.print()
+if int(input("Print? ")):
+    test.directives.print()
+    test.words.print()
+    test.code.print()
 
 test.words.out()
 test.code.out()
