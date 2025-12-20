@@ -1,0 +1,176 @@
+;
+; This test file implements a CORDIC Sin and Cos algorithm.
+
+.code
+    ; LUT must be initialized properly
+    ; Beginning with arctan(2^-i) values
+    ; Fixed point decimal scheme -> (0)101101.0 = 45 deg
+    ; and for X and Y vals (0).1001101 = 0.6015 ~= 0.607
+    
+@start  SUB R0, R0;
+        SUB R1, R1;
+        SUB R2, R2;
+        SUB R3, R3;
+    ; Initialize Y (R2) value to 0
+    ; Initialize X (R1) value to ~0.607
+        INC R1, 2;  R1 = 0000_0010
+        ADD R1, R1; R1 = 0000_0100
+        ADD R1, R1; R1 = 0000_1000
+        ADD R1, R1; R1 = 0001_0000
+        INC R1, 3;  R1 = 0001_0011
+        ADD R1, R1; R1 = 0010_0110
+        ADD R1, R1; R1 = 0100_1100
+        INC R1, 1;  R1 = 0100_1101
+    ; Initialize arctan(2^-i) values
+    ; 45.0 (45.0)
+        INC R3, 2;  R3 = 0000_0010
+        ADD R3, R3; R3 = 0000_0100
+        ADD R3, R3; R3 = 0000_1000
+        INC R3, 3;  R3 = 0000_1011
+        ADD R3, R3; R3 = 0001_0110
+        ADD R3, R3; R3 = 0010_1100
+        INC R3, 1;  R3 = 0010_1101
+        ADD R3, R3; R3 = 0101_1010
+        ST R3, M[R0, 0x01];
+    ; 26.6 (26.5)
+        SHRL R3, 1; R3 = 0010_1101
+        INC R3, 2;  R3 = 0010_1111
+        INC R3, 2;  R3 = 0011_0001
+        INC R3, 2;  R3 = 0011_0011
+        INC R3, 2;  R3 = 0011_0101
+        ST R3, M[R0, 0x02];
+    ; 14.0 (14.0)
+        SHRL R3, 1; R3 = 0001_1010
+        INC R3, 2;  R3 = 0001_1100
+        ST R3, M[R0, 0x03];
+    ; 7.1 (7.0)
+        SHRL R3, 1; R3 = 0000_1110
+        ST R3, M[R0, 0x04];
+    ; 3.6 (3.5)
+        SHRL R3, 1; R3 = 0000_0111
+        ST R3, M[R0, 0x05];
+    ; 1.8 (1.5)
+        SHRL R3, 1; R3 = 0000_0011
+        ST R3, M[R0, 0x06];
+    ; 0.9 (1.0)
+        DEC R3, 1; R3 = 0000_0010
+        ST R3, M[R0, 0x07];
+    ; 0.4 (0.5)
+        DEC R3, 1; R3 = 0000_0001
+        ST R3, M[R0, 0x08];
+        DEC R3, 1;
+    ; Values Initialized, begin reading input value
+    ; There are 16 possible switch combinations meaning
+    ; 45/7.5 = 6 degree increments. 1011 = 5.5 * 6 = 33 degrees.
+        PUSH R2;
+        LD	R2, M[R0, 0x3FF];
+        ADD R3, R2;
+        ADD R3, R2;
+        ADD R3, R2;
+        ADD R3, R2;
+        ADD R3, R2;
+        ADD R3, R2;
+        POP R2;
+    ; R0 will now hold iteration val and arctan values
+    ; Store iteration value
+
+@loop   PUSH R1;
+        SUB R1, R1;
+        ST R0, M[R1, 0x30];
+        LD R0, M[R0, 0x01];
+        POP R1;
+
+    ; Check R3 sign
+        CPY R3, R3;
+        JUMP N, @add;
+        SUB R3, R0;
+        ST R1, M[R0, 0x50];
+        LD R0, M[R0, 0x30];
+; create temporarily shifted past value y(n-1)
+        PUSH R0;
+        PUSH R2;
+        
+@shifts CPY R0, R0;
+        JUMP Z, @doneshs;
+        SHRL R2, 1;
+        DEC R0, 1;
+        JUMP Z, @doneshs;    
+        JUMP U, @shifts;
+        
+@doneshs SUB R1, R2;
+        POP R2;
+        POP R0;
+        PUSH R1;
+        PUSH R0;
+        SUB R0, R0;
+        LD R1, M[R0, 0x50]; Load Past X value
+        POP R0;
+        PUSH R0;
+
+@shiftts CPY R0, R0;
+        JUMP Z, @doneshts;
+        SHRL R1, 1;
+        DEC R0, 1;
+        JUMP Z, @doneshts;    
+        JUMP U, @shiftts;
+
+@doneshts ADD R2, R1;
+        POP R1;
+        POP R0;
+
+        JUMP U, @check;
+
+
+@add    ADD R3, R0;
+        SUB R0, R0;
+        ST R1, M[R0, 0x50];
+        LD R0, M[R0, 0x30];
+; create temporarily shifted past value y(n-1)
+        PUSH R0;
+        PUSH R2;
+        
+@shift  CPY R0, R0;
+        JUMP Z, @donesh;
+        SHRL R2, 1;
+        DEC R0, 1;
+        JUMP Z, @donesh;    
+        JUMP U, @shift;
+        
+@donesh ADD R1, R2;
+        POP R2;
+        POP R0;
+
+        PUSH R1;
+        PUSH R0;
+        SUB R0, R0;
+        LD R1, M[R0, 0x50]; Load Past X value
+        POP R0;
+        PUSH R0;
+
+@shiftt CPY R0, R0;
+        JUMP Z, @donesht;
+        SHRL R1, 1;
+        DEC R0, 1;
+        JUMP Z, @donesht;    
+        JUMP U, @shiftt;
+
+@donesht SUB R2, R1;
+        POP R1;
+        POP R0;
+        
+        
+@check  INC R0, 1;
+        ST R0, M[R0, 0x30];
+        DEC R0, 3;
+        DEC R0, 3;
+        JUMP Z, @donel;
+        CPY R3, R3;
+        JUMP Z, @donel;
+        JUMP U, @loop;
+
+@donel  SUB R0, R0;
+        ST R1, M[R0, 0x3FF];
+        JUMP U @start;
+
+
+.endcode

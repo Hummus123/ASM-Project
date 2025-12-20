@@ -1,0 +1,152 @@
+;
+; This test file implements a CORDIC Sin and Cos algorithm.
+
+.code
+    ; LUT must be initialized properly
+    ; Beginning with arctan(2^-i) values
+    ; Fixed point decimal scheme -> (0)101101.0 = 45 deg
+    ; and for X and Y vals (0).1001101 = 0.6015 ~= 0.607
+ @init  SUB R0, R0;
+        SUB R1, R1;
+        SUB R2, R2;
+        SUB R3, R3;
+    ; Initialize Y (R2) value to 0
+    ; Initialize X (R1) value to ~0.607
+        INC R1, 2;  R1 = 0000_0010
+        ADD R1, R1; R1 = 0000_0100
+        ADD R1, R1; R1 = 0000_1000
+        ADD R1, R1; R1 = 0001_0000
+        INC R1, 3;  R1 = 0001_0011
+        ADD R1, R1; R1 = 0010_0110
+        ADD R1, R1; R1 = 0100_1100
+        INC R1, 1;  R1 = 0100_1101
+    ; Initialize arctan(2^-i) values
+    ; 45.0 (45.0)
+        INC R3, 2;  R3 = 0000_0010
+        ADD R3, R3; R3 = 0000_0100
+        ADD R3, R3; R3 = 0000_1000
+        INC R3, 3;  R3 = 0000_1011
+        ADD R3, R3; R3 = 0001_0110
+        ADD R3, R3; R3 = 0010_1100
+        INC R3, 1;  R3 = 0010_1101
+        ADD R3, R3; R3 = 0101_1010
+        ST R3, M[R0, 0x61];
+    ; 26.6 (26.5)
+        SHRL R3, 1; R3 = 0010_1101
+        INC R3, 2;  R3 = 0010_1111
+        INC R3, 2;  R3 = 0011_0001
+        INC R3, 2;  R3 = 0011_0011
+        INC R3, 2;  R3 = 0011_0101
+        ST R3, M[R0, 0x62];
+    ; 14.0 (14.0)
+        SHRL R3, 1; R3 = 0001_1010
+        INC R3, 2;  R3 = 0001_1100
+        ST R3, M[R0, 0x63];
+    ; 7.1 (7.0)
+        SHRL R3, 1; R3 = 0000_1110
+        ST R3, M[R0, 0x64];
+    ; 3.6 (3.5)
+        SHRL R3, 1; R3 = 0000_0111
+        ST R3, M[R0, 0x65];
+    ; 1.8 (1.5)
+        SHRL R3, 1; R3 = 0000_0011
+        ST R3, M[R0, 0x66];
+    ; 0.9 (1.0)
+        DEC R3, 1; R3 = 0000_0010
+        ST R3, M[R0, 0x67];
+    ; 0.4 (0.5)
+        DEC R3, 1; R3 = 0000_0001
+        ST R3, M[R0, 0x68];
+    ; Values Initialized, begin reading input value
+    ; There are 16 possible switch combinations meaning
+    ; 45/7.5 = 6 degree increments. 101.1 = 5.5 * 6 = 33 degrees.
+        JUMP U, @begin;
+@start  JUMP U, @init;
+@begin  SUB R0, R0;
+        SUB R2, R2;
+        SUB R3, R3;
+        PUSH R2;
+        LD	R2, M[R0, 0x3FF];
+        ADD R3, R2;
+        ADD R3, R2;
+        ADD R3, R2;
+        ADD R3, R2;
+        ADD R3, R2;
+        ADD R3, R2;
+        POP R2;
+    ; R3 will now hold iteration val and input val
+    ; Store iteration value
+        ST R0, M[R0, 0x53];
+        PUSH R3;
+        LD R0, M[R0, 0x61];
+        INC R0, 0;
+        JUMP U, @loop;
+@two    LD R0, M[R0, 0x62];
+        INC R0, 0;
+        JUMP U, @loop;
+@three  LD R0, M[R0, 0x63];
+        INC R0, 0;
+        JUMP U, @loop;
+@four   LD R0, M[R0, 0x64];
+        INC R0, 0;
+        JUMP U, @loop;
+
+@loop   POP R3;
+        ST R1, M[R0, 0x51];
+        INC R1, 0;
+        ST R2, M[R0, 0x52];
+        PUSH R3;
+        LD R3, M[R0, 0x53];
+        INC R3, 0;
+@shift  JUMP Z, @donesh;
+        SHRL R1, 1;
+        SHRL R2, 1;
+        DEC R3, 1;
+        JUMP Z, @donesh;
+        JUMP U, @shift;
+@donesh POP R3; Get back input value
+        INC R3, 0;
+        JUMP N, @add;
+        SUB R3, R0;
+        PUSH R1;
+        LD R1, M[R0, 0x51];
+        SUB R1, R2;
+        ST R1, M[R0, 0x51];
+        POP R1;
+        LD R2, M[R0, 0x52];
+        ADD R2, R1;
+        ST R2, M[R0, 0x52];
+        JUMP U, @loopit;
+
+@add    ADD R3, R0;
+        PUSH R1;
+        LD R1, M[R0, 0x51];
+        ADD R1, R2;
+        ST R1, M[R0, 0x51];
+        POP R1;
+        LD R2, M[R0, 0x52];
+        SUB R2, R1;
+        ST R2, M[R0, 0x52];
+
+@loopit PUSH R3;
+        LD R3, M[R0, 0x53];
+        INC R3, 1;
+        ST R3, M[R0, 0x53];
+        DEC R3, 1;
+        JUMP Z, @two;
+        DEC R3, 1;
+        JUMP Z @three;
+        DEC R3, 1;
+        JUMP Z @four;
+        DEC R3, 1;
+        JUMP Z @done;
+
+
+@done   LD R1, M[R0, 0x51];
+        LD R2, M[R0, 0x52];
+        ST R1, M[R0, 0x3FF];
+        JUMP U, @start;
+
+
+.endcode
+            

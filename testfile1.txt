@@ -1,0 +1,9 @@
+.code;
+; hello
+
+PUSH R0;
+
+ADD R1, R2;
+ADD R1, R2;
+
+.endcode;

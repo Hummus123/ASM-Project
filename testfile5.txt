@@ -1,0 +1,9 @@
+.code
+
+INC R2, 3;
+SUB R0, R0;
+ST R2, M[R0, 0x52];
+SUB R2, R2;
+LD R2, M[R0, 0x52];
+
+.endcode

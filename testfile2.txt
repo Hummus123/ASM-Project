@@ -1,0 +1,22 @@
+; A program to calculate the first 10 fibonacci sequence elements
+
+.code;
+@start	SUB R0, R0; 
+        SUB R1, R1; 
+		SUB R2, R2; 
+		SUB R3, R3;
+        INC R2, 1;
+        INC R3, 3; Set iterator to 10
+        INC R3, 3;
+        INC R3, 3;
+        INC R3, 1;
+@loop   ST R1, M[R0, 0x3FF]; Write to leds
+        ST R2, M[R0, 0x3FF];
+        ADD R1, R2; Inrement values
+        ADD R2, R1;
+        DEC R3, 1;
+        JUMP Z, @done;
+        JUMP U, @loop;
+@done   ST R1, M[R0, 0x3FF];
+        JUMP U, @start;
+.endcode;

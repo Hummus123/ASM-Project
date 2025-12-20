@@ -38,15 +38,12 @@
 		SUB R2, R2; 
 		SUB R3, R3; 
 ; initialize the location which will store the product
-		ST	R3, M[R0, 0x53]; 
+		PUSH R3; 
 ; prepare and store iteration value
 		INC R1, 2; R1 = 2
 		ADD	R1, R1; R1 = 4
 		ADD R1, R1; R1 = 8
 		ST	R1, M[R0, 0x50];
-
-		JUMP CNZ, @dingle;
-
 ;--------------------------------------------------------------------
 ; Read in and prepare m_val and M_val
 ;--------------------------------------------------------------------
@@ -96,9 +93,9 @@
 		JUMP Z, @mbitz;
 ; else load the current product, add the current PP (R1) to it, 
 ; and store it back
-		LD	R3, M[R0, 0x53];
+		POP	R3;
 		ADD R3, R1;
-		ST	R3, M[R0, 0x53];
+		PUSH R3;
 ; prepare the next PP in R1 and the next mLSbit in R2 
 @mbitz	ADD	R1, R1;
 		SHRA R2, 1;
@@ -109,7 +106,7 @@
 		ST	R3, M[R0, 0x50];
 		JUMP U, @next;
 ; if done load the final product into R3 and display it on the lEDs
-@done	LD	R3, M[R0, 0x53];
+@done	POP	R3;
 		ST	R3, M[R0, 0x3FF]; write out to the LEDs
 ; jump back to start and repeat the multiplication
 		JUMP U, @start;

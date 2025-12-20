@@ -1,17 +1,6 @@
 import re
 from typing import NamedTuple
 
-"""""
-parser = Parser("file")
-parser.directives.print()
-parser.directives.out("txt")
-parser.words.print()
-parser.words.out("txt")
-parser.code.print()
-parser.code.out("txt")
-parser.code.out("mif")
-"""""
-
 class Parser:
     def __init__(self, file) :
         self.fileStr = file
@@ -19,11 +8,21 @@ class Parser:
         self.instructions = {"ADD":"0000", "SUB":"0001", "INC":"0010",
                              "DEC":"0011","XOR":"0100", "AND": "0101",
                              "OR": "0110", "CPY": "0111", "SHRA":"1000",
+                             "SHRL": "1001", "RLC": "1010",
+                             "RRC": "1010", "LD": "1011", "ST": "1100",
+                             "JUMP": "1101", "POP": "1110",
+                             "PUSH": "1111",
+                             "C":"1000", "N":"0100", "V":"0010", "Z":"0001", "U": "0000"}
+        """""
+        self.instructions = {"ADD":"0000", "SUB":"0001", "INC":"0010",
+                             "DEC":"0011","XOR":"0100", "AND": "0101",
+                             "OR": "0110", "CPY": "0111", "SHRA":"1000",
                              "SLLL": "1001", "SHRL": "1001", "RLC": "1010",
                              "RRC": "1010", "LD": "1011", "ST": "1100",
-                             "JUMP": "1101", "IN": "1110", "POP": "1110",
-                             "OUT": "1111", "PUSH": "1111",
+                             "JUMP": "1101", "IN": "1110",
+                             "OUT": "1111",
                              "C":"1000", "N":"0100", "V":"0010", "Z":"0001", "U": "0000"}
+        """""
         self.keyWords = [".directives", ".enddirectives", ".word", ".equ", ".endconstants"]
         self.ja = []
         self.words = self._words()
@@ -100,7 +99,7 @@ class Parser:
                                 self.directives.addDirective(name.linenum, name, val)
                                 i += 1
                                 t = tokens[i]
-                                if (t.val != "END"): raise Exception(f"Expected ;, {t.linenum}")
+                                if (t.val != "END"): raise Exception(f"Expected (;) at ({t.linenum})")
 
                 if(t.type.lower() == ".constants"):
                     while (t.type.lower() != ".endconstants"):
@@ -115,28 +114,33 @@ class Parser:
                                 self.words.addWord(name.linenum, name, val)
                                 i += 1
                                 t = tokens[i]
-                                if (t.val != "END"): raise Exception(f"Expected ;, {t.linenum}")
-                
+                                if (t.val != "END"): raise Exception(f"Expected (;) at ({t.linenum})")
+                line = 0
                 if (t.type.lower() == ".code"):
                     while (t.type.lower() != ".endcode"):
                         i += 1
                         t = tokens[i]
+                        if (t.val == "JA"):
+                            self.ja.append((line, t, tokens[i+1].type))
                         if (t.val == "INSTRUCTION"):
                             args = []
                             instruction = tokens[i]
                             i += 1
                             args.append(tokens[i])
-                            i += 1
-                            args.append(tokens[i])
-                            self.code.addCode(instruction.linenum, instruction, args)
+                            if (instruction.type not in ["PUSH", "POP"]):
+                                i += 1
+                                args.append(tokens[i])
+                            self.code.addCode(line, instruction, args)
                             i += 1
                             t = tokens[i]
-                            if (t.val != "END"): raise Exception(f"Expected ;, {t.linenum}")
-                        if (t.val == "JA"):
-                            self.ja.append((t.linenum, t))
-        for ja in self.ja:
-            print(ja)
-            #self.code.jas.append(ja)
+                            if (t.val != "END"): raise Exception(f"Expected (;) at ({t.linenum})")
+                            line += 1
+                            if instruction.type in ["ST", "LD", "JUMP"]:
+                                line+=1
+                        
+                        
+                        
+                        
         print("\tDone!")
         
     
@@ -199,17 +203,18 @@ class Parser:
                 print(code)
                 print(f"\t{code[0]} {code[1]} {code[2]}\n")
         
-        def out(self, fileType = "mif", depth = 32, width = 8, addRad = "hex", datRad = "bin"):
+        def out(self, fileType = "mif", depth = 1024, width = 8, addRad = "hex", datRad = "bin"):
             if fileType == "txt":
                 with open("code.txt", "w") as f:
                     for code in self.code:
                         f.write(f"{code[0]} {code[1]} {code[2]}\n")
             elif fileType == "mif":
-                with open("code.txt", "w") as f:
+                with open("code.mif", "w") as f:
                     f.write(f"DEPTH = {depth};\nWIDTH = {width};\nADDRESS_RADIX = {addRad.upper()};\nDATA_RADIX = {datRad.upper()};\nCONTENT BEGIN\n")
                     linenumAdj = 0
                     for code in self.code:
-                        f.write(f"{hex(linenumAdj)} : {self.instructions[code[1].type]}")
+                        linenumhex = ("0" * (4-len(hex(linenumAdj)[2:])) + hex(linenumAdj)[2:])
+                        f.write(f"{linenumhex} : {self.instructions[code[1].type]}")
                         
                         if code[1].type == "JUMP":
                             binsum = "0000"
@@ -218,32 +223,73 @@ class Parser:
                                     raise Exception(f"Unkown Jump Condition ({code.linenum})")
                                 binsum = bin(int(self.instructions[l.upper()], 2) + int(binsum, 2))[2:]
                             binsumext = "".join(["0" for i in range(4-len(binsum))]) + binsum
-                            f.write(f"{binsumext} here is a jum\n")
-                            if code[2][1].type not in self.ja:
-                                raise Exception(f"Jump Address not previously declared ({code.linenum})")
-                                
-                            
+                            f.write(f"{binsumext}; % JUMP {code[2][0].type} %\n")
+                            if code[2][1].type not in [i[1].type for i in self.jas]:
+                                print(code)
+                                raise Exception(f"Jump Address not previously declared ({code[1].linenum})")
+                            else:
+                                linenumAdj += 1
+                                desired = self.jas[[i[1].type for i in self.jas].index(code[2][1].type)]
+                                offset = desired[0] - linenumAdj
+
+                                if offset < 0:
+                                    binoffset = bin(offset+1)
+                                    binoffset = "".join(["0" for i in range(8-len(binoffset[3:]))]) + binoffset[3:]
+                                    binoffset = "".join([{"0":"1", "1":"0"}[i] for i in binoffset])
+                                else:
+                                    binoffset = bin(offset)
+                                    binoffset = "".join(["0" for i in range(8-len(binoffset[2:]))]) + binoffset[2:]
+                                linenumhex = ("0" * (4-len(hex(linenumAdj)[2:])) + hex(linenumAdj)[2:])
+                                f.write(f"{linenumhex} : {binoffset}; % Offset {offset} %\n")
+                                linenumAdj += 1
+                                continue
+                        
+                        if code[1].type in ["ST", "LD"]:
+                            for arg in code[2]:
+                                if arg.val == "REG":
+                                    f.write(self.registers[arg.type])
+                                if arg.val == "MEMADDRESS":
+                                    spec = [("REG", r'R[0123]'), ("HEX", r'0x[0-9A-F]*')]
+                                    regEx = "|".join('(?P<%s>%s)' % pair for pair in spec)
+                                    match = re.findall(regEx, arg.type)
+                                    hexaddr = bin(int(match[1][1], 16))[2:]
+                                    if len(hexaddr) > 8:
+                                        hexaddr = hexaddr[-8:]
+                                    else:
+                                        hexaddr = "".join(["0" for i in range(8-len(hexaddr))]) + hexaddr
+                                    f.write(f"{self.registers[match[0][0]]};%{code[1].type}%\n")
+                                    linenumAdj += 1
+                                    linenumhex = ("0" * (4-len(hex(linenumAdj)[2:])) + hex(linenumAdj)[2:])
+                                    f.write(f"{linenumhex} : {hexaddr}")
+
                         else:
                             for arg in code[2]:
                                 if arg.val == "REG":
                                     f.write(self.registers[arg.type])
+                                    if code[1].type in ["POP", "PUSH"]:
+                                        f.write("00")
                                 elif arg.val == "CONST":
-                                    f.write(bin(int(arg.type))[2:])
+                                    k = bin(int(arg.type))[2:]
+                                    if len(k) < 2:
+                                        k = "0" + k
+                                    f.write(k)
                                 
                         linenumAdj += 1
-                        f.write("\n")
+                        f.write(";\n")
+                    f.write(f"[ {hex(linenumAdj)[2:]} .. 3FF ] : 00000000;\n END;")
         def addCode(self, lineNum, type, args):
             self.code.append((lineNum, type, args))
         
         def addJA(self, ja):
             self.jas.append(ja)
     
-test = Parser("dxp_MUL_mmiop.txt")
-if int(input("Print? ")):
-    test.directives.print()
-    test.words.print()
-    test.code.print()
+test = Parser("testfile4.txt")
+
 if __name__ == "main":
     test.words.out()
     test.code.out()
     test.directives.out()
+
+test.words.out()
+test.code.out()
+test.directives.out("txt")
